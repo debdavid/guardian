@@ -1,0 +1,19 @@
+# Secret keys - NEVER commit to GitHub
+.env
+
+# Python auto-generated files
+__pycache__/
+*.pyc
+*.pyo
+
+# Conda environment
+*.egg-info/
+
+# Database file
+database/*.db
+
+# Mac system file
+.DS_Store
+
+# VS Code personal settings
+.vscode/
