@@ -27,7 +27,7 @@ from pathlib import Path
 # Audit log file location
 # Path() creates a cross-platform file path
 # Works on Mac, Windows, and Linux without changing the code
-AUDIT_LOG_PATH = Path('database/audit_log.json1')
+AUDIT_LOG_PATH = Path('database/audit_log.jsonl')
 
 # JASONL = JSON Lines format
 # Each line is a complete, valid JSON object

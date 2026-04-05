@@ -17,3 +17,6 @@ database/*.db
 
 # VS Code personal settings
 .vscode/
+
+# Audit log - contains processed data
+database/audit_log.jsonl
