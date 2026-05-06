@@ -229,7 +229,7 @@ if __name__ == "__main__":
     # Change regenerate_data=True to rebuild database from scratch
     report = run_guardian_pipeline(
         regenerate_data=False,
-        scan_limit=5,
+        scan_limit=None,
         verbose=True
     )
     

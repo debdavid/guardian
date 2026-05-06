@@ -1,0 +1,9 @@
+python-dotenv
+pandas
+streamlit
+requests
+azure-ai-textanalytics
+azure-core
+langgraph
+langchain-core
+azure-ai-inference
