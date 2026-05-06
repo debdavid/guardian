@@ -1,9 +1,8 @@
-python-dotenv
-pandas
 streamlit
-requests
+plotly
+pandas
+python-dotenv
 azure-ai-textanalytics
 azure-core
-langgraph
-langchain-core
-azure-ai-inference
+requests
+faker
