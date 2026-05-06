@@ -1,8 +1,8 @@
 {
   "pipeline_metadata": {
-    "started": "2026-05-06T19:38:59.707523",
-    "completed": "2026-05-06T19:43:20.046032",
-    "duration_seconds": 260,
+    "started": "2026-05-07T07:57:24.793856",
+    "completed": "2026-05-07T08:01:49.008982",
+    "duration_seconds": 264,
     "scan_limit": null,
     "mode": "full"
   },
@@ -25,18 +25,18 @@
     }
   },
   "audit_summary": {
-    "total_scans": 137,
-    "pii_found_count": 137,
-    "hitl_triggered_count": 122,
-    "critical_findings": 117,
+    "total_scans": 237,
+    "pii_found_count": 237,
+    "hitl_triggered_count": 222,
+    "critical_findings": 217,
     "human_overrides": 0,
     "actions_taken": {}
   },
   "well_architected_notes": {
     "reliability": "Three-tier safety net active - Azure, regex, fail-safe",
     "security": "PII hashed in audit log - privacy by design",
-    "cost_optimisation": "Free F0 tier - 137 transactions used",
+    "cost_optimisation": "Free F0 tier - 237 transactions used",
     "operational_excellence": "Full audit trail written to JSONL log",
-    "performance": "Pipeline completed in 260 seconds"
+    "performance": "Pipeline completed in 264 seconds"
   }
 }

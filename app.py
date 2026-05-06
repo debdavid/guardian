@@ -301,6 +301,9 @@ Phone: 0412 345 678
 Address: 42 Coronation Drive, Toowong QLD 4066
 BSB: 124-001 Account: 12345678
 Notes: Client contacted 12/03/2026 regarding estate distribution."""
+            st.session_state.scan_result = None
+            st.session_state.triage_result = None
+            st.rerun()
 
     with sample_col2:
         if st.button("📋 Load Sample — Case Notes"):
@@ -309,12 +312,18 @@ Spoke with beneficiary Robert Chen (DOB 22/07/1945).
 His TFN is 987 654 321. Medicare card 61234567890.
 Bank details: BSB 062-001 Account 98765432.
 Contact: robert.chen@email.com or 0498 765 432."""
+            st.session_state.scan_result = None
+            st.session_state.triage_result = None
+            st.rerun()
 
     with sample_col3:
         if st.button("📋 Load Sample — Clean Text"):
             st.session_state.scan_text = """The estate review meeting was held on Tuesday.
 All parties agreed to proceed with the standard distribution process.
 Further documentation will be required before finalisation."""
+            st.session_state.scan_result = None
+            st.session_state.triage_result = None
+            st.rerun()
 
     text_input = st.text_area(
         "Text to scan",
@@ -396,7 +405,7 @@ Further documentation will be required before finalisation."""
                 return colours.get(val, '')
 
             st.dataframe(
-                df_findings.style.applymap(colour_risk, subset=['Risk Level']),
+                df_findings.style.map(colour_risk, subset=['Risk Level']),
                 use_container_width=True,
                 hide_index=True
             )
@@ -441,13 +450,11 @@ elif page == "⚠️ DQO Review Queue":
     st.divider()
 
     st.info("""
-    **Human-in-the-Lead Principle**
-
-    Guardian recommends. The DQO decides.
-
-    No irreversible action — redaction, migration, disposal — is executed without explicit DQO authorisation.
-    Every decision is logged with timestamp, DQO identifier, and legislation reference.
-    This is not a policy document. It is embedded in the architecture.
+    **Review each finding below and select an action.**
+    
+    Guardian has identified records requiring your attention.
+    Your decision will be logged automatically with your identifier and timestamp.
+    No action is taken until you click Authorise.
     """)
 
     # Initialise review queue in session state
