@@ -281,46 +281,60 @@ if page == "🏠 Governance Dashboard":
         col_left, col_right = st.columns(2)
 
         with col_left:
-            st.subheader("Risk Distribution")
-            risk_data = pd.DataFrame({
-                'Risk Level': ['Critical', 'High', 'Medium', 'Low'],
-                'Count': [
-                    risk.get('critical', 0),
-                    risk.get('high', 0),
-                    risk.get('medium', 0),
-                    risk.get('low', 0)
-                ]
-            })
-            fig_risk = px.bar(
-                risk_data, x='Risk Level', y='Count', color='Risk Level',
-                color_discrete_map={
-                    'Critical': '#DC2626', 'High': '#EA580C',
-                    'Medium': '#D97706', 'Low': '#16A34A'
-                },
-                title="Records by Risk Level"
-            )
-            fig_risk.update_layout(showlegend=False, height=300)
-            st.plotly_chart(fig_risk, use_container_width=True)
+            st.subheader("PII Types Detected")
+            all_entries = read_audit_log(limit=10000)
+            category_counts = {}
+            for e in all_entries:
+                for f in e.get('findings_summary', []):
+                    cat = f.get('category', 'Unknown')
+                    category_counts[cat] = category_counts.get(cat, 0) + 1
+
+            if category_counts:
+                pii_df = pd.DataFrame(
+                    sorted(category_counts.items(), key=lambda x: x[1], reverse=True),
+                    columns=['PII Type', 'Count']
+                )
+                fig_pii = px.bar(
+                    pii_df, x='Count', y='PII Type',
+                    orientation='h',
+                    color='Count',
+                    color_continuous_scale=['#FEF3C7', '#EA580C', '#DC2626'],
+                    title="What sensitive data is exposed"
+                )
+                fig_pii.update_layout(
+                    showlegend=False, height=300,
+                    coloraxis_showscale=False,
+                    yaxis={'categoryorder': 'total ascending'}
+                )
+                st.plotly_chart(fig_pii, use_container_width=True)
+            else:
+                st.info("No findings data yet.")
 
         with col_right:
-            st.subheader("Recommended Actions")
-            if actions:
-                # Only show actions with data
-                filtered_actions = {k: v for k, v in actions.items() if v > 0}
-                if filtered_actions:
-                    action_data = pd.DataFrame(
-                        list(filtered_actions.items()),
-                        columns=['Action', 'Count']
-                    )
-                    fig_actions = px.pie(
-                        action_data, names='Action', values='Count',
-                        title="Action Distribution",
-                        color_discrete_sequence=px.colors.qualitative.Set2
-                    )
-                    fig_actions.update_layout(height=300)
-                    st.plotly_chart(fig_actions, use_container_width=True)
-                else:
-                    st.info("No action data available yet.")
+            st.subheader("AI vs Human Decisions")
+            actions_taken = audit_summary.get('actions_taken', {})
+            total_dqo = sum(actions_taken.values())
+            overrides = audit_summary.get('human_overrides', 0)
+            agreements = total_dqo - overrides
+
+            if total_dqo > 0:
+                decision_df = pd.DataFrame({
+                    'Outcome': ['Agreed with AI', 'Overrode AI'],
+                    'Count': [agreements, overrides]
+                })
+                fig_decisions = px.bar(
+                    decision_df, x='Outcome', y='Count',
+                    color='Outcome',
+                    color_discrete_map={
+                        'Agreed with AI': '#16A34A',
+                        'Overrode AI': '#DC2626'
+                    },
+                    title="Human-in-the-Lead: DQO decision pattern"
+                )
+                fig_decisions.update_layout(showlegend=False, height=300)
+                st.plotly_chart(fig_decisions, use_container_width=True)
+            else:
+                st.info("No DQO decisions recorded yet. Authorise actions in the Review Queue to populate this chart.")
 
         st.divider()
 
@@ -350,7 +364,7 @@ if page == "🏠 Governance Dashboard":
             st.info(f"📅 Completed: {meta.get('completed', 'Unknown')[:19]}")
         with m3:
             st.info(f"🔧 Mode: {meta.get('mode', 'unknown').upper()}")
-
+            
 # ============================================================
 # PAGE 2 - LIVE PII SCANNER
 # ============================================================
