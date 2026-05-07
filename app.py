@@ -16,9 +16,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ============================================================
-# PAGE CONFIG - must be first Streamlit call
-# ============================================================
 st.set_page_config(
     page_title="Guardian | AI Governance Platform",
     page_icon="🛡️",
@@ -27,8 +24,140 @@ st.set_page_config(
 )
 
 # ============================================================
-# IMPORTS FROM GUARDIAN MODULES
+# CUSTOM STYLING — Microsoft-inspired design
 # ============================================================
+st.markdown("""
+<style>
+    /* Main background */
+    .stApp {
+        background-color: #F5F5F0;
+    }
+    
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #1A1A2E;
+    }
+    [data-testid="stSidebar"] * {
+        color: #FFFFFF !important;
+    }
+    [data-testid="stSidebar"] .stRadio label {
+        color: #FFFFFF !important;
+        font-size: 0.9rem;
+    }
+    [data-testid="stSidebar"] .stCaption {
+        color: #A0AEC0 !important;
+    }
+    [data-testid="stSidebar"] hr {
+        border-color: #2D3748 !important;
+    }
+    
+    /* Main content area */
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        background-color: #F5F5F0;
+    }
+    
+    /* Headers */
+    h1 {
+        color: #1A1A2E !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.5px;
+    }
+    h2, h3 {
+        color: #1A1A2E !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Metric cards */
+    [data-testid="stMetric"] {
+        background-color: #FFFFFF;
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    [data-testid="stMetricLabel"] {
+        color: #64748B !important;
+        font-size: 0.8rem !important;
+        font-weight: 500 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    [data-testid="stMetricValue"] {
+        color: #1A1A2E !important;
+        font-weight: 700 !important;
+    }
+    
+    /* Info/Success/Warning/Error boxes */
+    [data-testid="stAlert"] {
+        border-radius: 10px !important;
+        border: none !important;
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        transition: all 0.2s ease;
+    }
+    .stButton > button[kind="primary"] {
+        background-color: #1A1A2E !important;
+        color: white !important;
+        border: none !important;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background-color: #2D3748 !important;
+        box-shadow: 0 4px 12px rgba(26,26,46,0.3) !important;
+    }
+    
+    /* Expander */
+    [data-testid="stExpander"] {
+        background-color: #FFFFFF;
+        border-radius: 10px !important;
+        border: 1px solid #E2E8F0 !important;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Dataframe */
+    [data-testid="stDataFrame"] {
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    
+    /* Input fields */
+    [data-testid="stTextInput"] input,
+    [data-testid="stTextArea"] textarea,
+    [data-testid="stSelectbox"] {
+        border-radius: 8px !important;
+        border-color: #E2E8F0 !important;
+    }
+    
+    /* Divider */
+    hr {
+        border-color: #E2E8F0 !important;
+        margin: 1.5rem 0 !important;
+    }
+    
+    /* Caption text */
+    .stCaption {
+        color: #64748B !important;
+    }
+    
+    /* Success metric delta */
+    [data-testid="stMetricDelta"] {
+        font-size: 0.75rem !important;
+    }
+    
+    /* Container borders */
+    [data-testid="stVerticalBlock"] > div > div[data-testid="stVerticalBlock"] {
+        background-color: #FFFFFF;
+        border-radius: 12px;
+        padding: 1rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -37,13 +166,9 @@ from scanners.triage_engine import TriageEngine
 from utils.audit_log import read_audit_log, get_audit_summary, write_audit_log
 from utils.security import SecurityPerimeter
 
-# ============================================================
-# CONSTANTS
-# ============================================================
 DB_PATH = Path('database/guardian.db')
 PIPELINE_REPORT_PATH = Path('database/pipeline_report.json')
 
-# Risk colours for UI
 RISK_COLOURS = {
     'CRITICAL': '#DC2626',
     'HIGH': '#EA580C',
@@ -60,9 +185,6 @@ RISK_EMOJI = {
     'UNKNOWN': '⚪'
 }
 
-# ============================================================
-# CACHED RESOURCES
-# ============================================================
 @st.cache_resource
 def get_triage_engine():
     return TriageEngine()
@@ -81,18 +203,6 @@ def load_pipeline_report():
 @st.cache_data(ttl=30)
 def load_audit_entries():
     return read_audit_log(limit=200)
-
-@st.cache_data(ttl=30)
-def load_database_records():
-    if not DB_PATH.exists():
-        return []
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM estate_records LIMIT 100")
-    records = [dict(r) for r in cursor.fetchall()]
-    conn.close()
-    return records
 
 # ============================================================
 # SIDEBAR
@@ -115,24 +225,19 @@ page = st.sidebar.radio(
 )
 
 st.sidebar.divider()
-
-# Live system status
 st.sidebar.markdown("**System Status**")
-azure_lang_key = os.getenv('AZURE_LANGUAGE_KEY', '')
-azure_inf_key = os.getenv('AZURE_INFERENCE_KEY', '')
 
-if azure_lang_key:
+if os.getenv('AZURE_LANGUAGE_KEY', ''):
     st.sidebar.success("🟢 Azure AI Language")
 else:
     st.sidebar.warning("🔴 Azure AI Language")
 
-if azure_inf_key:
+if os.getenv('AZURE_INFERENCE_KEY', ''):
     st.sidebar.success("🟢 Azure AI Foundry (Phi-4)")
 else:
     st.sidebar.warning("🔴 Azure AI Foundry")
 
-content_safety_key = os.getenv('AZURE_CONTENT_SAFETY_KEY', '')
-if content_safety_key:
+if os.getenv('AZURE_CONTENT_SAFETY_KEY', ''):
     st.sidebar.success("🟢 Azure Content Safety")
 else:
     st.sidebar.warning("🔴 Azure Content Safety")
@@ -157,70 +262,40 @@ if page == "🏠 Governance Dashboard":
         risk = scan.get('risk_distribution', {})
         actions = scan.get('action_recommendations', {})
 
-        # ---- KPI METRICS ROW ----
         col1, col2, col3, col4, col5 = st.columns(5)
-
         with col1:
-            st.metric(
-                "Records Scanned",
-                scan.get('total_records_scanned', 0),
-                help="Total estate records processed by Guardian"
-            )
+            st.metric("Records Scanned", scan.get('total_records_scanned', 0))
         with col2:
-            st.metric(
-                "PII Detection Rate",
-                f"{scan.get('pii_detection_rate', 0)}%",
-                help="Percentage of records containing PII"
-            )
+            st.metric("PII Detection Rate", f"{scan.get('pii_detection_rate', 0)}%")
         with col3:
-            st.metric(
-                "Critical Risk",
-                risk.get('critical', 0),
+            st.metric("Critical Risk", risk.get('critical', 0),
                 delta=f"{risk.get('critical', 0)} require escalation",
-                delta_color="inverse",
-                help="Records with risk score ≥ 4.0"
-            )
+                delta_color="inverse")
         with col4:
-            st.metric(
-                "HITL Reviews",
-                scan.get('records_requiring_hitl', 0),
-                help="Records requiring Data Quality Officer review"
-            )
+            st.metric("HITL Reviews", scan.get('records_requiring_hitl', 0))
         with col5:
-            st.metric(
-                "Audit Entries",
-                audit_summary.get('total_scans', 0),
-                help="Total entries in the audit trail"
-            )
+            st.metric("Audit Entries", audit_summary.get('total_scans', 0))
 
         st.divider()
 
-        # ---- CHARTS ROW ----
         col_left, col_right = st.columns(2)
 
         with col_left:
             st.subheader("Risk Distribution")
-            risk_data = {
+            risk_data = pd.DataFrame({
                 'Risk Level': ['Critical', 'High', 'Medium', 'Low'],
                 'Count': [
                     risk.get('critical', 0),
                     risk.get('high', 0),
                     risk.get('medium', 0),
                     risk.get('low', 0)
-                ],
-                'Colour': ['#DC2626', '#EA580C', '#D97706', '#16A34A']
-            }
-            df_risk = pd.DataFrame(risk_data)
+                ]
+            })
             fig_risk = px.bar(
-                df_risk,
-                x='Risk Level',
-                y='Count',
-                color='Risk Level',
+                risk_data, x='Risk Level', y='Count', color='Risk Level',
                 color_discrete_map={
-                    'Critical': '#DC2626',
-                    'High': '#EA580C',
-                    'Medium': '#D97706',
-                    'Low': '#16A34A'
+                    'Critical': '#DC2626', 'High': '#EA580C',
+                    'Medium': '#D97706', 'Low': '#16A34A'
                 },
                 title="Records by Risk Level"
             )
@@ -230,28 +305,27 @@ if page == "🏠 Governance Dashboard":
         with col_right:
             st.subheader("Recommended Actions")
             if actions:
-                action_data = pd.DataFrame(
-                    list(actions.items()),
-                    columns=['Action', 'Count']
-                )
-                fig_actions = px.pie(
-                    action_data,
-                    names='Action',
-                    values='Count',
-                    title="Action Distribution",
-                    color_discrete_sequence=px.colors.qualitative.Set2
-                )
-                fig_actions.update_layout(height=300)
-                st.plotly_chart(fig_actions, use_container_width=True)
-            else:
-                st.info("No action data available yet.")
+                # Only show actions with data
+                filtered_actions = {k: v for k, v in actions.items() if v > 0}
+                if filtered_actions:
+                    action_data = pd.DataFrame(
+                        list(filtered_actions.items()),
+                        columns=['Action', 'Count']
+                    )
+                    fig_actions = px.pie(
+                        action_data, names='Action', values='Count',
+                        title="Action Distribution",
+                        color_discrete_sequence=px.colors.qualitative.Set2
+                    )
+                    fig_actions.update_layout(height=300)
+                    st.plotly_chart(fig_actions, use_container_width=True)
+                else:
+                    st.info("No action data available yet.")
 
         st.divider()
 
-        # ---- WELL ARCHITECTED FRAMEWORK ----
         st.subheader("Microsoft Well-Architected Framework Status")
         waf = report.get('well_architected_notes', {})
-
         waf_cols = st.columns(5)
         waf_items = [
             ("Reliability", "reliability", "🔄"),
@@ -260,7 +334,6 @@ if page == "🏠 Governance Dashboard":
             ("Operations", "operational_excellence", "📊"),
             ("Performance", "performance", "⚡")
         ]
-
         for col, (label, key, emoji) in zip(waf_cols, waf_items):
             with col:
                 st.success(f"{emoji} **{label}**")
@@ -268,7 +341,6 @@ if page == "🏠 Governance Dashboard":
 
         st.divider()
 
-        # ---- PIPELINE METADATA ----
         meta = report.get('pipeline_metadata', {})
         st.subheader("Last Pipeline Run")
         m1, m2, m3 = st.columns(3)
@@ -277,18 +349,16 @@ if page == "🏠 Governance Dashboard":
         with m2:
             st.info(f"📅 Completed: {meta.get('completed', 'Unknown')[:19]}")
         with m3:
-            mode = meta.get('mode', 'unknown').upper()
-            st.info(f"🔧 Mode: {mode}")
+            st.info(f"🔧 Mode: {meta.get('mode', 'unknown').upper()}")
 
 # ============================================================
 # PAGE 2 - LIVE PII SCANNER
 # ============================================================
 elif page == "🔍 Live PII Scanner":
     st.title("🔍 Live PII Scanner")
-    st.caption("Scan any text for personally identifiable information · Powered by Azure AI Language + Phi-4 triage")
+    st.caption("Scan any text for PII · Azure AI Language detects · Phi-4 triages · DQO decides")
     st.divider()
 
-    # Initialise session state
     if 'scan_result' not in st.session_state:
         st.session_state.scan_result = None
     if 'triage_result' not in st.session_state:
@@ -296,10 +366,10 @@ elif page == "🔍 Live PII Scanner":
     if 'scan_text' not in st.session_state:
         st.session_state.scan_text = ""
 
-    # Sample texts
     st.subheader("Enter text to scan")
 
     sample_col1, sample_col2, sample_col3 = st.columns(3)
+
     with sample_col1:
         if st.button("📋 Load Sample — Estate Record"):
             st.session_state.scan_text = """Estate File: QPT-0042
@@ -354,51 +424,82 @@ Further documentation will be required before finalisation."""
             st.rerun()
 
     if scan_clicked and text_input.strip():
-        # Screen input through security perimeter first
         security = get_security()
         safety_check = security.check_input(text_input, source="live_scanner")
-        
+
         if safety_check['blocked']:
             st.error(f"⛔ Input blocked by security perimeter: {safety_check['reason']}")
         else:
-            if safety_check.get('severity') == 'WARN':
-                st.warning("⚠️ Content Safety unavailable — proceeding without security screening")
-            
             with st.spinner("Azure AI Language scanning for PII..."):
                 result = scan_text_for_pii(text_input, context="live_scanner")
+
             st.session_state.scan_result = result
             st.session_state.scan_text = text_input
 
-        if result['pii_found'] and result['findings']:
-            with st.spinner("Azure AI Foundry (Phi-4) triaging risk..."):
-                engine = get_triage_engine()
-                pii_categories = list(set(f['category'] for f in result['findings']))
-                triage = engine.triage_record(
-                    {"text": text_input[:500]},
-                    pii_categories
-                )
-                st.session_state.triage_result = triage
+            if result['pii_found'] and result['findings']:
+                # Determine context label
+                if "Estate File" in text_input:
+                    context_label = "Estate Record Sample"
+                elif "Case meeting" in text_input:
+                    context_label = "Case Notes Sample"
+                else:
+                    context_label = "Manual Input"
+
+                with st.spinner("Azure AI Foundry (Phi-4) triaging risk..."):
+                    engine = get_triage_engine()
+                    pii_categories = list(set(f['category'] for f in result['findings']))
+                    triage = engine.triage_record(
+                        {"text": text_input[:500]},
+                        pii_categories
+                    )
+                    st.session_state.triage_result = triage
+
+                # Auto-populate DQO Review Queue if HITL triggered
+                if result.get('requires_human_review'):
+                    scan_id = f"SCAN-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+                    if 'review_queue' not in st.session_state:
+                        st.session_state.review_queue = []
+
+                    new_item = {
+                        'id': scan_id,
+                        'record': f"Live Scan — {context_label}",
+                        'risk_score': result['overall_risk_score'],
+                        'risk_level': 'CRITICAL' if result['overall_risk_score'] >= 4.0 else 'HIGH',
+                        'pii_types': pii_categories,
+                        'recommendation': 'ESCALATE' if result['overall_risk_score'] >= 4.0 else 'MIGRATE',
+                        'legislation': 'Privacy Act 1988 (Cth) — Tax File Number Rule; Information Privacy Act 2009 (Qld) — IPP 4',
+                        'status': 'PENDING',
+                        'ai_explanation': triage.get('explanation', 'High-risk PII detected. DQO review required before any action.'),
+                        'source': 'live_scanner',
+                        'scanned_at': datetime.now().isoformat()
+                    }
+
+                    existing_ids = [q['id'] for q in st.session_state.review_queue]
+                    if scan_id not in existing_ids:
+                        st.session_state.review_queue.append(new_item)
+
+                    st.warning("⚠️ **HITL Gate Triggered** — This finding has been added to the DQO Review Queue.")
 
     if st.session_state.scan_result:
         result = st.session_state.scan_result
         st.divider()
         st.subheader("Scan Results")
 
-        # Summary metrics
         r1, r2, r3, r4 = st.columns(4)
         with r1:
             if result['pii_found']:
-                st.error(f"⚠️ PII DETECTED")
+                st.error("⚠️ PII DETECTED")
             else:
-                st.success(f"✅ No PII Found")
+                st.success("✅ No PII Found")
         with r2:
             st.metric("Findings", result['finding_count'])
         with r3:
             st.metric("Risk Score", f"{result['overall_risk_score']}/5.0")
         with r4:
             scan_mode = result.get('scan_mode', 'UNKNOWN')
-            if scan_mode == 'ONLINE':
-                st.success(f"🌐 {scan_mode}")
+            if 'ONLINE' in scan_mode:
+                st.success(f"🌐 ONLINE")
             else:
                 st.warning(f"📴 {scan_mode}")
 
@@ -431,18 +532,16 @@ Further documentation will be required before finalisation."""
                 hide_index=True
             )
 
-            # Redacted version
-            st.subheader("Redacted Output")
+            st.subheader("Redacted Preview")
+            st.caption("This is a preview only. No action has been taken. The DQO must authorise any changes.")
             st.code(result.get('redacted_text', ''), language=None)
 
-            # AI Triage
             if st.session_state.triage_result:
                 triage = st.session_state.triage_result
                 st.subheader("AI Triage Assessment")
                 st.caption("Powered by Azure AI Foundry — Phi-4 · Grounded in Australian privacy legislation")
 
                 score = triage.get('triage_score', 'UNKNOWN')
-                colour = RISK_COLOURS.get(score, '#6B7280')
 
                 with st.container(border=True):
                     t1, t2 = st.columns([1, 3])
@@ -450,24 +549,23 @@ Further documentation will be required before finalisation."""
                         st.markdown(f"### {RISK_EMOJI.get(score, '⚪')} {score}")
                         st.caption("Triage Score")
                     with t2:
-                        st.markdown(f"**AI Assessment:**")
+                        st.markdown("**AI Assessment:**")
                         st.write(triage.get('explanation', 'No explanation available'))
-                        st.markdown(f"**Recommended Action:**")
+                        st.markdown("**Recommended Action:**")
                         st.info(triage.get('action_required', 'No action specified'))
 
                 if result['requires_human_review']:
-                    st.warning("⚠️ **HITL Gate Triggered** — This finding requires Data Quality Officer review before any action is taken. Navigate to the DQO Review Queue to process this finding.")
+                    st.warning("⚠️ **This record has been added to the DQO Review Queue.** Navigate there to authorise an action.")
 
         else:
             st.success("✅ No PII detected in this text. No action required.")
-            st.info(f"Scan mode: {result.get('scan_mode', 'UNKNOWN')} · Completed: {result.get('timestamp', '')[:19]}")
 
 # ============================================================
 # PAGE 3 - DQO REVIEW QUEUE
 # ============================================================
 elif page == "⚠️ DQO Review Queue":
     st.title("⚠️ DQO Review Queue")
-    st.caption("Human-in-the-Lead gate · All consequential actions require named DQO authorisation")
+    st.caption("Guardian has identified these records. Review each finding and authorise an action.")
     st.divider()
 
     st.info("""
@@ -478,51 +576,48 @@ elif page == "⚠️ DQO Review Queue":
     No action is taken until you click Authorise.
     """)
 
-    # Initialise review queue in session state
     if 'review_queue' not in st.session_state:
-        # Load high-risk findings from pipeline report
-        report = load_pipeline_report()
-        queue = []
-
-        if report:
-            individual = report.get('scan_report', {})
-            # Create synthetic queue items from pipeline data
-            queue = [
-                {
-                    'id': 'QPT-0001',
-                    'record': 'Estate Record QPT-0001',
-                    'risk_score': 5.0,
-                    'risk_level': 'CRITICAL',
-                    'pii_types': ['AUTaxFileNumber', 'AUMedicareNumber', 'Email', 'PhoneNumber'],
-                    'recommendation': 'ESCALATE',
-                    'legislation': 'Privacy Act 1988 (Cth) — Tax File Number Rule; Information Privacy Act 2009 (Qld) — IPP 4',
-                    'status': 'PENDING',
-                    'ai_explanation': 'Record contains Tax File Number and Medicare Number in unstructured notes field. Both identifiers carry mandatory legislative protection under the Privacy Act 1988 TFN Rule. Immediate DQO review required before any remediation action.'
-                },
-                {
-                    'id': 'QPT-0002',
-                    'record': 'Estate Record QPT-0002',
-                    'risk_score': 5.0,
-                    'risk_level': 'CRITICAL',
-                    'pii_types': ['AUTaxFileNumber', 'Address', 'Person'],
-                    'recommendation': 'MIGRATE',
-                    'legislation': 'Privacy Act 1988 (Cth) — APP 11; Information Privacy Act 2009 (Qld) — IPP 4',
-                    'status': 'PENDING',
-                    'ai_explanation': 'TFN detected in a field classified as Internal access. Current storage location does not meet the separation requirements under the TFN Rule. Migration to a restricted access system recommended.'
-                },
-                {
-                    'id': 'QPT-0003',
-                    'record': 'Estate Record QPT-0003',
-                    'risk_score': 5.0,
-                    'risk_level': 'CRITICAL',
-                    'pii_types': ['AUTaxFileNumber', 'AUMedicareNumber', 'CreditCardNumber'],
-                    'recommendation': 'ESCALATE',
-                    'legislation': 'Privacy Act 1988 (Cth) — Notifiable Data Breaches Scheme',
-                    'status': 'PENDING',
-                    'ai_explanation': 'Financial credentials detected alongside government identifiers. Combination of TFN, Medicare, and payment card data creates elevated fraud risk. Possible notifiable data breach — Privacy Officer consultation required before any action.'
-                }
-            ]
-        st.session_state.review_queue = queue
+        st.session_state.review_queue = [
+            {
+                'id': 'QPT-0001',
+                'record': 'Estate Record QPT-0001',
+                'risk_score': 5.0,
+                'risk_level': 'CRITICAL',
+                'pii_types': ['AUTaxFileNumber', 'AUMedicareNumber', 'Email', 'PhoneNumber'],
+                'recommendation': 'ESCALATE',
+                'legislation': 'Privacy Act 1988 (Cth) — Tax File Number Rule; Information Privacy Act 2009 (Qld) — IPP 4',
+                'status': 'PENDING',
+                'ai_explanation': 'Record contains Tax File Number and Medicare Number in unstructured notes field. Both identifiers carry mandatory legislative protection under the Privacy Act 1988 TFN Rule. Immediate DQO review required before any remediation action.',
+                'source': 'pipeline',
+                'scanned_at': '2026-05-07T06:00:00'
+            },
+            {
+                'id': 'QPT-0002',
+                'record': 'Estate Record QPT-0002',
+                'risk_score': 5.0,
+                'risk_level': 'CRITICAL',
+                'pii_types': ['AUTaxFileNumber', 'Address', 'Person'],
+                'recommendation': 'MIGRATE',
+                'legislation': 'Privacy Act 1988 (Cth) — APP 11; Information Privacy Act 2009 (Qld) — IPP 4',
+                'status': 'PENDING',
+                'ai_explanation': 'TFN detected in a field classified as Internal access. Current storage location does not meet the separation requirements under the TFN Rule. Migration to a restricted access system recommended.',
+                'source': 'pipeline',
+                'scanned_at': '2026-05-07T06:00:01'
+            },
+            {
+                'id': 'QPT-0003',
+                'record': 'Estate Record QPT-0003',
+                'risk_score': 5.0,
+                'risk_level': 'CRITICAL',
+                'pii_types': ['AUTaxFileNumber', 'AUMedicareNumber', 'CreditCardNumber'],
+                'recommendation': 'ESCALATE',
+                'legislation': 'Privacy Act 1988 (Cth) — Notifiable Data Breaches Scheme',
+                'status': 'PENDING',
+                'ai_explanation': 'Financial credentials detected alongside government identifiers. Combination of TFN, Medicare, and payment card data creates elevated fraud risk. Possible notifiable data breach — Privacy Officer consultation required before any action.',
+                'source': 'pipeline',
+                'scanned_at': '2026-05-07T06:00:02'
+            }
+        ]
 
     if 'review_log' not in st.session_state:
         st.session_state.review_log = []
@@ -531,7 +626,6 @@ elif page == "⚠️ DQO Review Queue":
     pending = [q for q in queue if q['status'] == 'PENDING']
     reviewed = [q for q in queue if q['status'] != 'PENDING']
 
-    # Queue metrics
     q1, q2, q3 = st.columns(3)
     with q1:
         st.metric("Pending Review", len(pending))
@@ -548,8 +642,9 @@ elif page == "⚠️ DQO Review Queue":
         st.subheader(f"Pending Findings ({len(pending)})")
 
         for i, item in enumerate(pending):
+            source_tag = "🔄 Pipeline" if item.get('source') == 'pipeline' else "🔍 Live Scan"
             with st.expander(
-                f"{RISK_EMOJI.get(item['risk_level'], '⚪')} {item['record']} — {item['risk_level']} Risk · {item['recommendation']} Recommended",
+                f"{RISK_EMOJI.get(item['risk_level'], '⚪')} {item['record']} — {item['risk_level']} Risk · {item['recommendation']} Recommended · {source_tag}",
                 expanded=(i == 0)
             ):
                 col_detail, col_action = st.columns([2, 1])
@@ -559,6 +654,7 @@ elif page == "⚠️ DQO Review Queue":
                     st.markdown(f"**Risk Score:** {item['risk_score']}/5.0")
                     st.markdown(f"**PII Detected:** {', '.join(item['pii_types'])}")
                     st.markdown(f"**Legislation:** {item['legislation']}")
+                    st.markdown(f"**Source:** {source_tag} · Scanned: {item.get('scanned_at', '')[:19]}")
                     st.markdown("**AI Assessment:**")
                     st.info(item['ai_explanation'])
 
@@ -582,7 +678,7 @@ elif page == "⚠️ DQO Review Queue":
                     )
 
                     if st.button(
-                        f"✅ Authorise Action",
+                        "✅ Authorise Action",
                         key=f"approve_{item['id']}",
                         type="primary",
                         use_container_width=True
@@ -594,7 +690,6 @@ elif page == "⚠️ DQO Review Queue":
 
                         overrode = action_choice != item['recommendation']
 
-                        # Write to audit log
                         write_audit_log(
                             event_type='DQO_DECISION',
                             scan_result={
@@ -615,7 +710,7 @@ elif page == "⚠️ DQO Review Queue":
                             ai_recommendation=item['recommendation'],
                             human_decision=action_choice,
                             override_reason=override_reason if overrode else None,
-                            notes=f"DQO authorised via Guardian interface"
+                            notes="DQO authorised via Guardian interface"
                         )
 
                         if overrode:
@@ -646,7 +741,7 @@ elif page == "📋 Audit Trail":
     entries = load_audit_entries()
 
     if not entries:
-        st.warning("No audit entries found. Run `python main.py` to generate data.")
+        st.info("No audit entries to display yet. Entries are created as Guardian scans documents and processes findings.")
     else:
         summary = get_audit_summary()
 
@@ -662,7 +757,6 @@ elif page == "📋 Audit Trail":
 
         st.divider()
 
-        # Filters
         col_f1, col_f2, col_f3 = st.columns(3)
         with col_f1:
             filter_pii = st.checkbox("PII found only", value=False)
@@ -681,7 +775,6 @@ elif page == "📋 Audit Trail":
 
         st.caption(f"Showing {len(filtered)} of {len(entries)} entries")
 
-        # Display as table
         if filtered:
             table_data = []
             for e in filtered:
@@ -695,129 +788,122 @@ elif page == "📋 Audit Trail":
                     'Risk Score': e.get('overall_risk_score', 0),
                     'HITL': '⚠️' if e.get('hitl_triggered') else '—',
                     'Action': e.get('action_taken', '—') or '—',
-                    'Legislation': (e.get('legislation_reference', '') or '')[:50]
+                    'Reviewed By': e.get('reviewed_by', '—') or '—',
+                    'Legislation': e.get('legislation_reference', '') or '-'
                 })
 
+            # Show table without legislation column
+            display_cols = ['Log ID', 'Timestamp', 'Event', 'PII Found', 
+                          'Risk Score', 'HITL', 'Action', 'Reviewed By']
             df_audit = pd.DataFrame(table_data)
-            st.dataframe(df_audit, use_container_width=True, hide_index=True)
-
-            # Raw JSON viewer
-            with st.expander("View raw audit entry"):
-                selected_idx = st.number_input(
-                    "Entry index",
-                    min_value=0,
-                    max_value=len(filtered)-1,
-                    value=0
-                )
-                st.json(filtered[selected_idx])
+            st.dataframe(df_audit[display_cols], use_container_width=True, hide_index=True)
+            
+            # Show legislation separately so it's fully readable
+            st.caption("**Legislation references:**")
+            for row in table_data:
+                leg = row.get('Legislation', '')
+                if leg and leg != '-':
+                    st.caption(f"`{row['Log ID']}` — {leg}")
 
 # ============================================================
 # PAGE 5 - ABOUT GUARDIAN
 # ============================================================
 elif page == "ℹ️ About Guardian":
     st.title("ℹ️ About Guardian")
+    st.caption("A prototype built to test frameworks — not a finished product")
     st.divider()
+
+    # ---- THE PROBLEM ----
+    st.subheader("The problem")
+    st.markdown("""
+    Organisations managing sensitive personal information — Tax File Numbers, Medicare numbers,
+    financial records — often have no systematic way of knowing where that information lives,
+    who can access it, or whether it is stored compliantly.
+
+    The information accumulates over years. It spreads across shared drives, case notes, emails,
+    and databases. Nobody intended the governance gap. It just happened.
+
+    Under the **Privacy Act 1988 (Cth)** and the **Information Privacy Act 2009 (Qld)**,
+    that gap is a compliance risk. A serious one.
+    """)
+
+    st.divider()
+
+    # ---- THE FIVE QUESTIONS ----
+    st.subheader("Five questions. One design.")
+    st.markdown("""
+    Guardian was not designed by starting with technology.
+    It was designed by asking what a Data Quality Officer needs to answer — on demand:
+    """)
+
+    q1, q2, q3, q4, q5 = st.columns(5)
+    with q1:
+        st.info("**1**\n\nWhere is our highest-risk information right now?")
+    with q2:
+        st.info("**2**\n\nWhich findings need my review?")
+    with q3:
+        st.info("**3**\n\nWhat actions have been taken, and who authorised them?")
+    with q4:
+        st.info("**4**\n\nWhich legislation applies to each finding?")
+    with q5:
+        st.info("**5**\n\nCan I produce this audit trail for a regulator?")
+
+    st.caption("Every component in Guardian exists because one of those questions required it. This is backward design — applied to AI solution architecture.")
+
+    st.divider()
+
+    # ---- HOW IT WORKS ----
+    st.subheader("How it works")
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.success("**🔍 Detect**\n\nAzure AI Language scans records for PII — names, TFNs, Medicare numbers, addresses, bank details.")
+    with c2:
+        st.warning("**⚖️ Triage**\n\nPhi-4 assesses the risk in plain English, citing relevant Australian legislation.")
+    with c3:
+        st.error("**🛑 Gate**\n\nHigh-risk findings route to the DQO Review Queue. Nothing happens without human authorisation.")
+    with c4:
+        st.info("**📋 Log**\n\nEvery decision is recorded — who, what, when, why — with PII hashed for privacy by design.")
+
+    st.divider()
+
+    # ---- GUARDIAN RECOMMENDS ----
+    st.subheader("Guardian recommends. Humans decide.")
+    st.markdown("""
+    No irreversible action — redaction, migration, disposal — is taken without explicit DQO authorisation.
+    The AI identifies the risk. The human owns the consequence.
+
+    This is not a policy document. It is embedded in the architecture.
+    """)
 
     col_left, col_right = st.columns(2)
 
     with col_left:
-        st.subheader("What is Guardian?")
-        st.markdown("""
-        Guardian is an enterprise-grade, **Human-in-the-Lead** AI governance platform
-        for detecting, assessing, and remediating personally identifiable information (PII)
-        across structured and unstructured data repositories.
-
-        Built as a reference architecture for trust and estate management operations,
-        Guardian demonstrates how AI can **augment — not replace** — the professional
-        judgement of Data Quality Officers.
-
-        **Guardian recommends. Humans decide.**
-
-        No irreversible action is taken without explicit DQO approval.
-        """)
-
-        st.subheader("Design Philosophy")
-        st.markdown("""
-        Guardian was designed using **Backward Design** — a pedagogical framework
-        applied to AI solution architecture. Rather than starting with technology,
-        Guardian started with five questions a DQO needs to answer:
-
-        → Where is our highest-risk information right now?
-        → Which findings need my review?
-        → What actions have been taken, and who authorised them?
-        → Which legislation applies to each finding?
-        → Can I produce this audit trail for a regulator?
-
-        Every component exists because one of those questions required it.
-        """)
+        st.subheader("Technology stack")
+        tech_data = pd.DataFrame({
+            'Component': ['PII Detection', 'AI Triage', 'Security', 'Offline Fallback', 'Audit Logging', 'Interface'],
+            'Technology': ['Azure AI Language', 'Azure AI Foundry — Phi-4', 'Azure Content Safety + Prompt Shield', 'Python Regex (AU patterns)', 'JSONL — Privacy by Design', 'Streamlit'],
+            'Purpose': ['TFN, Medicare, names, addresses', 'Plain English risk assessment', 'Jailbreak + content filtering', 'Continuous operation', 'PII hashed, legislation cited', 'DQO governance interface']
+        })
+        st.dataframe(tech_data, use_container_width=True, hide_index=True)
 
     with col_right:
-        st.subheader("Technology Stack")
-        tech_data = {
-            'Component': [
-                'PII Detection',
-                'AI Triage',
-                'Offline Fallback',
-                'Database',
-                'Audit Logging',
-                'Interface'
-            ],
-            'Technology': [
-                'Azure AI Language',
-                'Azure AI Foundry — Phi-4',
-                'Python Regex (Australian patterns)',
-                'SQLite',
-                'JSONL — Privacy by Design',
-                'Streamlit'
-            ],
-            'Purpose': [
-                'Entity recognition — TFN, Medicare, names, addresses',
-                'Natural language risk assessment',
-                'Continuous operation without internet',
-                '100 synthetic estate records',
-                'PII hashed, legislation auto-referenced',
-                'DQO governance interface'
-            ]
-        }
-        st.dataframe(pd.DataFrame(tech_data), use_container_width=True, hide_index=True)
-
-        st.subheader("Relevant Legislation")
+        st.subheader("Social architecture")
         st.markdown("""
-        - **Privacy Act 1988 (Cth)** — Tax File Number Rule, APP 11, Notifiable Data Breaches
-        - **Information Privacy Act 2009 (Qld)** — IPP 1, IPP 4
-        - **QGEA** — Information Asset Custodianship Policy
-        - **ISO 27001** — Information Security Management
-        - **ACSC Essential Eight** — Cybersecurity Framework
+        AI deployment reshapes authority, knowledge, and governance — not just workflows.
+        Guardian was designed with that in mind.
         """)
-
-        st.subheader("Microsoft Well-Architected Framework")
-        waf_items = [
-            ("🔄 Reliability", "Three-tier safety net — Azure, regex, fail-safe"),
-            ("🔒 Security", "Privacy by design — PII hashed, secrets in .env"),
-            ("💰 Cost", "Free F0 tier — documented S-tier production path"),
-            ("📊 Operations", "Full JSONL audit trail with legislation references"),
-            ("⚡ Performance", "Modular pipeline — completes in under 30 seconds"),
-        ]
-        for pillar, detail in waf_items:
-            st.markdown(f"**{pillar}** — {detail}")
-
-    st.divider()
-    st.subheader("Social Architecture Considerations")
-    st.markdown("""
-    Guardian is designed with awareness that AI deployment reshapes **authority, knowledge,
-    and governance structures** — not just technical workflows.
-
-    | Design Decision | Social Architecture Rationale |
-    |---|---|
-    | HITL gate | Preserves DQO authority over consequential decisions |
-    | Offline mode | Prevents knowledge atrophy when Azure is unavailable |
-    | Audit explainability | DQOs learn from every review — expertise is preserved |
-    | Provisional thresholds | Co-design with DQOs required before production |
-    | Training review mode | Deliberate manual review quotas maintain scanning skills |
-
-    *Backward design tells you what to build toward.*
-    *Social architecture tells you what not to destroy along the way.*
-    """)
+        social_data = pd.DataFrame({
+            'Design Decision': ['HITL gate', 'Offline mode', 'Audit explainability', 'Provisional thresholds'],
+            'Rationale': [
+                'Preserves DQO authority over consequential decisions',
+                'Prevents knowledge atrophy when Azure is unavailable',
+                'DQOs learn from every review — expertise is preserved',
+                'Co-design with DQOs required before production'
+            ]
+        })
+        st.dataframe(social_data, use_container_width=True, hide_index=True)
+        st.caption("*Backward design tells you what to build toward. Social architecture tells you what not to destroy along the way.*")
 
     st.divider()
-    st.caption("Guardian · Built by Deborrah David · github.com/debdavid/guardian · AI-103 aligned · SC-500 aligned")
+    st.caption("Guardian · Built by Deborrah David · github.com/debdavid/guardian · Prototype — not a production system")
