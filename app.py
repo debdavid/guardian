@@ -745,6 +745,7 @@ elif page == "📋 Audit Trail":
     else:
         summary = get_audit_summary()
 
+        # ── Summary metrics ──────────────────────────────────────────
         a1, a2, a3, a4 = st.columns(4)
         with a1:
             st.metric("Total Entries", summary.get('total_scans', 0))
@@ -757,6 +758,7 @@ elif page == "📋 Audit Trail":
 
         st.divider()
 
+        # ── Filters ───────────────────────────────────────────────────
         col_f1, col_f2, col_f3 = st.columns(3)
         with col_f1:
             filter_pii = st.checkbox("PII found only", value=False)
@@ -775,36 +777,135 @@ elif page == "📋 Audit Trail":
 
         st.caption(f"Showing {len(filtered)} of {len(entries)} entries")
 
-        if filtered:
+        if not filtered:
+            st.info("No entries match the current filters.")
+        else:
+            # ── Label maps ────────────────────────────────────────────
+            ACTION_EMOJI = {
+                'ESCALATE': '🔴 ESCALATE',
+                'REDACT':   '✏️ REDACT',
+                'MIGRATE':  '📦 MIGRATE',
+                'RETAIN':   '📁 RETAIN',
+                'DISPOSE':  '🗑️ DISPOSE',
+            }
+            EVENT_LABEL = {
+                'DATABASE_RECORD_SCANNED': '🔍 DB Scan',
+                'DQO_DECISION':            '⚖️ DQO Decision',
+                'LIVE_SCAN':               '🌐 Live Scan',
+            }
+
+            # ── Build table rows ──────────────────────────────────────
             table_data = []
+
             for e in filtered:
+                # Scan mode
+                raw_mode = e.get('scan_mode', '')
+                if 'ONLINE'  in raw_mode: display_mode = '🌐 ONLINE'
+                elif 'OFFLINE' in raw_mode: display_mode = '📴 OFFLINE'
+                elif 'FAILED'  in raw_mode: display_mode = '❌ FAILED'
+                else: display_mode = raw_mode or '—'
+
+                # Risk score
+                risk_score = e.get('overall_risk_score', 0)
+
+                # Action with emoji
+                raw_action = e.get('action_taken') or '—'
+                action_display = ACTION_EMOJI.get(raw_action, raw_action)
+
+                # Event label
+                raw_event = e.get('event_type', '')
+                event_display = EVENT_LABEL.get(raw_event, raw_event)
+
+                # Legislation — truncated for column display
+                leg = (e.get('legislation_reference') or '').replace(' - ', ' — ').replace(';', ' ·')
+                leg_display = leg or '—'
+                log_id_short = (e.get('log_id') or '')[:16]
+
                 table_data.append({
-                    'Log ID': e.get('log_id', '')[:20],
-                    'Timestamp': e.get('timestamp', '')[:19],
-                    'Event': e.get('event_type', ''),
-                    'Mode': e.get('scan_mode', ''),
-                    'PII Found': '✅' if e.get('pii_found') else '❌',
-                    'Findings': e.get('finding_count', 0),
-                    'Risk Score': e.get('overall_risk_score', 0),
-                    'HITL': '⚠️' if e.get('hitl_triggered') else '—',
-                    'Action': e.get('action_taken', '—') or '—',
-                    'Reviewed By': e.get('reviewed_by', '—') or '—',
-                    'Legislation': e.get('legislation_reference', '') or '-'
+                    'Log ID':      log_id_short,
+                    'Timestamp':   (e.get('timestamp') or '')[:19],
+                    'Event':       event_display,
+                    'Mode':        display_mode,
+                    'PII Found':   '✅' if e.get('pii_found') else '❌',
+                    'Findings':    e.get('finding_count', 0),
+                    'Risk Score':  risk_score,
+                    'HITL':        '⚠️' if e.get('hitl_triggered') else '—',
+                    'Action':      action_display,
+                    'Reviewed By': e.get('reviewed_by') or '—',
+                    'Legislation': leg_display,
                 })
 
-            # Show table without legislation column
-            display_cols = ['Log ID', 'Timestamp', 'Event', 'PII Found', 
-                          'Risk Score', 'HITL', 'Action', 'Reviewed By']
             df_audit = pd.DataFrame(table_data)
-            st.dataframe(df_audit[display_cols], use_container_width=True, hide_index=True)
-            
-            # Show legislation separately so it's fully readable
-            st.caption("**Legislation references:**")
-            for row in table_data:
-                leg = row.get('Legislation', '')
-                if leg and leg != '-':
-                    st.caption(f"`{row['Log ID']}` — {leg}")
 
+            # ── Column order ──────────────────────────────────────────
+            display_cols = [
+                'Log ID', 'Timestamp', 'Event', 'Mode',
+                'PII Found', 'Findings', 'Risk Score',
+                'HITL', 'Action', 'Reviewed By',
+                'Legislation'
+            ]
+
+            # ── Stylers ───────────────────────────────────────────────
+            def style_risk(val):
+                try:
+                    v = float(val)
+                except (ValueError, TypeError):
+                    return ''
+                if v >= 4.5:   return 'background-color:#FEE2E2; color:#DC2626; font-weight:700'
+                elif v >= 3.5: return 'background-color:#FED7AA; color:#EA580C; font-weight:600'
+                elif v >= 2.0: return 'background-color:#FEF3C7; color:#D97706'
+                else:          return 'background-color:#DCFCE7; color:#16A34A'
+
+            def style_action(val):
+                if 'ESCALATE' in str(val): return 'color:#DC2626; font-weight:700'
+                if 'MIGRATE'  in str(val): return 'color:#D97706; font-weight:600'
+                if 'REDACT'   in str(val): return 'color:#7C3AED; font-weight:600'
+                if 'DISPOSE'  in str(val): return 'color:#6B7280'
+                if 'RETAIN'   in str(val): return 'color:#16A34A'
+                return ''
+
+            styled_df = (
+                df_audit[display_cols]
+                .style
+                .map(style_risk,   subset=['Risk Score'])
+                .map(style_action, subset=['Action'])
+                .set_properties(**{'text-align': 'left'})
+                .set_table_styles([
+                    {'selector': 'th', 'props': [
+                        ('background-color', '#1A1A2E'),
+                        ('color', 'white'),
+                        ('font-weight', '600'),
+                        ('font-size', '0.8rem'),
+                        ('text-transform', 'uppercase'),
+                        ('letter-spacing', '0.5px'),
+                        ('padding', '10px 12px'),
+                    ]},
+                    {'selector': 'td', 'props': [
+                        ('padding', '9px 12px'),
+                        ('border-bottom', '1px solid #F1F5F9'),
+                        ('font-size', '0.875rem'),
+                    ]},
+                    {'selector': 'tr:hover td', 'props': [
+                        ('background-color', '#F8FAFC'),
+                    ]},
+                ])
+            )
+
+            st.dataframe(
+                styled_df,
+                use_container_width=True,
+                hide_index=True,
+                height=min(400, 56 + len(df_audit) * 48),
+                column_config={
+                    "Legislation": st.column_config.TextColumn(
+                        "Legislation",
+                        width="large",
+                    )
+                }
+            )
+
+            st.divider()
+            st.caption("💡 Right-click the table and choose **Download as CSV** to export for regulator review.")
 # ============================================================
 # PAGE 5 - ABOUT GUARDIAN
 # ============================================================
