@@ -35,6 +35,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from scanners.pii_scanner import scan_text_for_pii
 from scanners.triage_engine import TriageEngine
 from utils.audit_log import read_audit_log, get_audit_summary, write_audit_log
+from utils.security import SecurityPerimeter
 
 # ============================================================
 # CONSTANTS
@@ -65,6 +66,10 @@ RISK_EMOJI = {
 @st.cache_resource
 def get_triage_engine():
     return TriageEngine()
+
+@st.cache_resource
+def get_security():
+    return SecurityPerimeter()
 
 @st.cache_data(ttl=30)
 def load_pipeline_report():
@@ -125,6 +130,12 @@ if azure_inf_key:
     st.sidebar.success("🟢 Azure AI Foundry (Phi-4)")
 else:
     st.sidebar.warning("🔴 Azure AI Foundry")
+
+content_safety_key = os.getenv('AZURE_CONTENT_SAFETY_KEY', '')
+if content_safety_key:
+    st.sidebar.success("🟢 Azure Content Safety")
+else:
+    st.sidebar.warning("🔴 Azure Content Safety")
 
 st.sidebar.caption(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
 
@@ -343,8 +354,18 @@ Further documentation will be required before finalisation."""
             st.rerun()
 
     if scan_clicked and text_input.strip():
-        with st.spinner("Azure AI Language scanning for PII..."):
-            result = scan_text_for_pii(text_input, context="live_scanner")
+        # Screen input through security perimeter first
+        security = get_security()
+        safety_check = security.check_input(text_input, source="live_scanner")
+        
+        if safety_check['blocked']:
+            st.error(f"⛔ Input blocked by security perimeter: {safety_check['reason']}")
+        else:
+            if safety_check.get('severity') == 'WARN':
+                st.warning("⚠️ Content Safety unavailable — proceeding without security screening")
+            
+            with st.spinner("Azure AI Language scanning for PII..."):
+                result = scan_text_for_pii(text_input, context="live_scanner")
             st.session_state.scan_result = result
             st.session_state.scan_text = text_input
 
